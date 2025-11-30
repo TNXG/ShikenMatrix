@@ -323,7 +323,6 @@ $transition-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 		.drag-handle {
 			/* Windows 下禁用原生拖拽区域，使用 JS 模拟 */
 			-webkit-app-region: no-drag !important;
-			app-region: no-drag !important;
 			cursor: grab;
 		}
 
