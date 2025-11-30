@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { type as getOsType } from "@tauri-apps/plugin-os";
 import gsap from "gsap";
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
 import "@/assets/main.css";
@@ -16,34 +17,9 @@ const longPressTriggered = ref(false); // 标记长按是否已触发
 const LONG_PRESS_DURATION = 500; // 长按触发时间（毫秒）
 
 // Windows 平台拖拽优化
-const isWindows = navigator.userAgent.includes("Windows");
+const isWindows = ref(false);
 const pendingDrag = ref(false);
 const dragStartPos = ref({ x: 0, y: 0 });
-
-const handleWindowsMouseMove = (e: MouseEvent) => {
-	if (!pendingDrag.value)
-		return;
-	const dx = e.clientX - dragStartPos.value.x;
-	const dy = e.clientY - dragStartPos.value.y;
-	if (Math.hypot(dx, dy) > 5) {
-		// 拖拽距离超过阈值，开始拖拽
-		pendingDrag.value = false;
-		// 清除长按计时器（因为已经开始拖拽了）
-		clearLongPressTimer();
-		window.removeEventListener("mousemove", handleWindowsMouseMove);
-		window.removeEventListener("mouseup", handleWindowsMouseUp);
-		startDrag();
-	}
-};
-
-const handleWindowsMouseUp = () => {
-	if (pendingDrag.value) {
-		// 鼠标抬起但未触发拖拽，视为点击
-		pendingDrag.value = false;
-		window.removeEventListener("mousemove", handleWindowsMouseMove);
-		window.removeEventListener("mouseup", handleWindowsMouseUp);
-	}
-};
 
 // 使用 Tauri API 实现窗口拖动
 const startDrag = async () => {
@@ -162,40 +138,6 @@ const handleDoubleClick = async () => {
 	}
 };
 
-// 长按开始 - 同时启动拖动和长按计时
-const handleLongPressStart = (_e: MouseEvent | TouchEvent) => {
-	// 清除之前的计时器
-	clearLongPressTimer();
-	longPressTriggered.value = false;
-
-	const startTimer = () => {
-		isLongPressing.value = true;
-		longPressTimer.value = setTimeout(async () => {
-			// 长按触发，切换菜单状态
-			longPressTriggered.value = true;
-			if (showCapsuleMenu.value) {
-				closeCapsuleMenu();
-			} else {
-				await openCapsuleMenu();
-			}
-			isLongPressing.value = false;
-		}, LONG_PRESS_DURATION);
-	};
-
-	if (isWindows && _e instanceof MouseEvent) {
-		// Windows 下延迟拖拽，先记录位置
-		pendingDrag.value = true;
-		dragStartPos.value = { x: _e.clientX, y: _e.clientY };
-		window.addEventListener("mousemove", handleWindowsMouseMove);
-		window.addEventListener("mouseup", handleWindowsMouseUp);
-		startTimer();
-	} else {
-		// macOS 或触摸事件，立即启动拖动
-		startDrag();
-		startTimer();
-	}
-};
-
 // 长按结束
 const handleLongPressEnd = () => {
 	// 如果长按已经触发（菜单已打开/关闭），只重置视觉状态
@@ -214,7 +156,20 @@ const handleWindowBlur = () => {
 	}
 };
 
-onMounted(() => {
+onMounted(async () => {
+	// 使用 Tauri OS 插件检测平台
+	const osType = getOsType();
+
+	// 设置平台类到 body，确保 CSS 变量能够正确继承
+	if (osType === "macos") {
+		document.body.classList.add("platform-macos");
+	} else if (osType === "windows") {
+		isWindows.value = true;
+		document.body.classList.add("platform-windows");
+	} else {
+		document.body.classList.add("platform-linux");
+	}
+
 	window.addEventListener("blur", handleWindowBlur);
 });
 
@@ -222,6 +177,7 @@ onMounted(() => {
 onUnmounted(() => {
 	clearLongPressTimer();
 	window.removeEventListener("blur", handleWindowBlur);
+	document.body.classList.remove("platform-windows", "platform-macos", "platform-linux");
 });
 
 // 窗口操作
@@ -254,17 +210,75 @@ const handleClickOutside = (e: MouseEvent) => {
 		closeCapsuleMenu();
 	}
 };
+
+const handleWindowsMouseUp = () => {
+	if (pendingDrag.value) {
+		// 鼠标抬起但未触发拖拽，视为点击
+		pendingDrag.value = false;
+		// eslint-disable-next-line ts/no-use-before-define
+		window.removeEventListener("mousemove", handleWindowsMouseMove);
+		window.removeEventListener("mouseup", handleWindowsMouseUp);
+	}
+};
+
+const handleWindowsMouseMove = (e: MouseEvent) => {
+	if (!pendingDrag.value)
+		return;
+	const dx = e.clientX - dragStartPos.value.x;
+	const dy = e.clientY - dragStartPos.value.y;
+	if (Math.hypot(dx, dy) > 5) {
+		// 拖拽距离超过阈值，开始拖拽
+		pendingDrag.value = false;
+		// 清除长按计时器（因为已经开始拖拽了）
+		clearLongPressTimer();
+		window.removeEventListener("mousemove", handleWindowsMouseMove);
+		window.removeEventListener("mouseup", handleWindowsMouseUp);
+		startDrag();
+	}
+};
+// 长按开始 - 同时启动拖动和长按计时
+const handleLongPressStart = (_e: MouseEvent | TouchEvent) => {
+	// 清除之前的计时器
+	clearLongPressTimer();
+	longPressTriggered.value = false;
+
+	const startTimer = () => {
+		isLongPressing.value = true;
+		longPressTimer.value = setTimeout(async () => {
+			// 长按触发，切换菜单状态
+			longPressTriggered.value = true;
+			if (showCapsuleMenu.value) {
+				closeCapsuleMenu();
+			} else {
+				await openCapsuleMenu();
+			}
+			isLongPressing.value = false;
+		}, LONG_PRESS_DURATION);
+	};
+
+	if (isWindows.value && _e instanceof MouseEvent) {
+		// Windows 下延迟拖拽，先记录位置
+		pendingDrag.value = true;
+		dragStartPos.value = { x: _e.clientX, y: _e.clientY };
+		window.addEventListener("mousemove", handleWindowsMouseMove);
+		window.addEventListener("mouseup", handleWindowsMouseUp);
+		startTimer();
+	} else {
+		// macOS 或触摸事件，立即启动拖动
+		startDrag();
+		startTimer();
+	}
+};
 </script>
 
 <template>
-	<div class="app-container" @click="handleClickOutside">
+	<div class="app-container" :class="{ 'platform-windows': isWindows }" @click="handleClickOutside">
 		<!-- 顶部拖拽区域 - 双击或长按打开菜单 -->
 		<div
 			class="drag-handle" :class="{ 'dragging': isDragging, 'long-pressing': isLongPressing }"
 			@mousedown="handleLongPressStart" @mouseup="handleLongPressEnd" @mouseleave="handleLongPressEnd"
 			@touchstart.passive="handleLongPressStart" @touchend="handleLongPressEnd" @touchcancel="handleLongPressEnd"
-			@dblclick.stop="handleDoubleClick"
-			@click.stop
+			@dblclick.stop="handleDoubleClick" @click.stop
 		>
 			<div class="drag-indicator">
 				<span class="indicator-dot" />
@@ -304,6 +318,19 @@ $transition-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 	overflow: hidden;
 	/* 创建独立堆叠上下文 */
 	isolation: isolate;
+
+	&.platform-windows {
+		.drag-handle {
+			/* Windows 下禁用原生拖拽区域，使用 JS 模拟 */
+			-webkit-app-region: no-drag !important;
+			app-region: no-drag !important;
+			cursor: grab;
+		}
+
+		.drag-handle.dragging {
+			cursor: grabbing;
+		}
+	}
 }
 
 .drag-handle {
@@ -421,6 +448,7 @@ $transition-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 		transform: scale(1.05);
 		background: rgba(0, 122, 255, 0.12);
 	}
+
 	50% {
 		transform: scale(1.1);
 		background: rgba(0, 122, 255, 0.2);
@@ -432,6 +460,7 @@ $transition-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 	100% {
 		transform: scale(1.2);
 	}
+
 	50% {
 		transform: scale(1.4);
 	}
@@ -441,6 +470,7 @@ $transition-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 	0% {
 		background-position: 0% 50%;
 	}
+
 	100% {
 		background-position: 200% 50%;
 	}

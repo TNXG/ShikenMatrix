@@ -67,8 +67,21 @@ const measureTextWidth = (text: string, fontSize: number, fontWeight: number = 4
 	return ctx.measureText(text).width;
 };
 
+// 防抖变量
+let updateWindowTimer: ReturnType<typeof setTimeout> | null = null;
+let lastWindowSize = { width: -1, height: -1 };
+
 // 动态调整窗口大小
-const updateWindowSize = async () => {
+const updateWindowSize = async (debounce: boolean = true) => {
+	// 防抖处理，避免频繁调整
+	if (debounce) {
+		if (updateWindowTimer) {
+			clearTimeout(updateWindowTimer);
+		}
+		updateWindowTimer = setTimeout(() => updateWindowSize(false), 100);
+		return;
+	}
+
 	await nextTick();
 	if (!containerRef.value)
 		return;
@@ -104,11 +117,30 @@ const updateWindowSize = async () => {
 		// 限制在最大宽度内
 		const finalWidth = Math.min(Math.max(neededWidth, MIN_WIDTH), MAX_WIDTH);
 
-		// 获取内容实际高度
-		const contentHeight = containerRef.value.scrollHeight;
-		const totalHeight = DRAG_HANDLE_HEIGHT + contentHeight + 10;
+		// 确保有最小高度，避免窗口太小看不到内容
+		let contentHeight = 200; // 默认最小内容高度
+		if (containerRef.value) {
+			const rect = containerRef.value.getBoundingClientRect();
+			contentHeight = Math.max(rect.height, 200); // 确保至少200px高度
+		}
+		const totalHeight = DRAG_HANDLE_HEIGHT + contentHeight; // 不再添加额外间距，避免累积增长
 
-		await window.setSize(new LogicalSize(Math.round(finalWidth), Math.round(totalHeight)));
+		// 向下取整，避免累积误差
+		const newW = Math.floor(finalWidth);
+		const newH = Math.floor(totalHeight);
+
+		// 如果是第一次初始化或者尺寸发生明显变化，则调整窗口
+		const isFirstTime = lastWindowSize.width === -1 || lastWindowSize.height === -1;
+		const sizeThreshold = 3;
+		if (isFirstTime
+			|| Math.abs(lastWindowSize.width - newW) >= sizeThreshold || Math.abs(lastWindowSize.height - newH) >= sizeThreshold) {
+			try {
+				await window.setSize(new LogicalSize(newW, newH));
+				lastWindowSize = { width: newW, height: newH };
+			} catch (err) {
+				console.error("设置窗口大小失败:", err);
+			}
+		}
 	} catch (e) {
 		console.error("调整窗口大小失败:", e);
 	}
@@ -183,6 +215,10 @@ onMounted(async () => {
 onUnmounted(() => {
 	if (pollingInterval) {
 		clearInterval(pollingInterval);
+	}
+	if (updateWindowTimer) {
+		clearTimeout(updateWindowTimer);
+		updateWindowTimer = null;
 	}
 });
 </script>
