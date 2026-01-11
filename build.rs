@@ -1,4 +1,10 @@
 fn main() {
+    // Set install name for macOS dylib
+    #[cfg(target_os = "macos")]
+    {
+        println!("cargo:rustc-cdylib-link-arg=-Wl,-install_name,@rpath/libshikenmatrix.dylib");
+    }
+
     // Generate C header for FFI using cbindgen
     cbindgen::Builder::new()
         .with_crate(".")

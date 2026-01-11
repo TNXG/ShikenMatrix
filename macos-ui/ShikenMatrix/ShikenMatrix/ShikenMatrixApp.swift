@@ -13,40 +13,67 @@ struct ShikenMatrixApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // Hide default window, manage via StatusBar
-        WindowGroup {
-            ContentView()
-                .frame(minWidth: 400, minHeight: 300)
-                .onAppear {
-                    appDelegate.hideWindow()
-                }
+        // 使用 Settings 场景，避免多窗口问题
+        Settings {
+            EmptyView()
         }
-        .commandsRemoved()
-        .windowStyle(.hiddenTitleBar)
     }
 }
 
 /// Application delegate to manage startup and status bar
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusBarManager: StatusBarManager?
     var window: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Create status bar manager
+        // Set activation policy to accessory to hide dock icon
+        NSApp.setActivationPolicy(.accessory)
+        
+        // Create status bar manager first
         statusBarManager = StatusBarManager()
-
-        // Get the main window
-        if let window = NSApp.windows.first {
-            self.window = window
-            statusBarManager?.setWindow(window)
-
-            // Hide window on startup - start in tray mode
-            window.setIsVisible(false)
-        }
-
-        // Set activation policy to accessory to avoid dock icon
-        // (commented out to keep in dock for now)
-        // NSApp.setActivationPolicy(.accessory)
+        
+        // Create and configure the main window manually
+        createMainWindow()
+        
+        // Show notification that app is running in tray
+        showStartupNotification()
+    }
+    
+    private func showStartupNotification() {
+        let notification = NSUserNotification()
+        notification.title = "时刻矩阵 ShikenMatrix"
+        notification.informativeText = "应用已在系统托盘启动，点击托盘图标打开设置"
+        notification.soundName = nil
+        
+        NSUserNotificationCenter.default.deliver(notification)
+    }
+    
+    private func createMainWindow() {
+        // Create window with ContentView
+        let contentView = ContentView()
+        let hostingController = NSHostingController(rootView: contentView)
+        
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        
+        window.title = "时刻矩阵 ShikenMatrix"
+        window.contentViewController = hostingController
+        window.delegate = self
+        window.center()
+        
+        // Configure window behavior
+        window.level = .normal
+        window.collectionBehavior = [.canJoinAllSpaces]
+        
+        // Hide window on startup - start in tray mode
+        window.setIsVisible(false)
+        
+        self.window = window
+        statusBarManager?.setWindow(window)
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -54,6 +81,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showWindow()
         }
         return true
+    }
+    
+    // Intercept window close to hide instead of quit
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        hideWindow()
+        return false  // Don't actually close the window
     }
 
     func showWindow() {

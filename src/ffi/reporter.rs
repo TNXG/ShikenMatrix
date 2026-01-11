@@ -3,16 +3,30 @@
 use super::types::{SmConfig, SmReporter, SmStatus};
 use crate::services::Reporter;
 use std::ffi::CStr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Once};
 use tracing::{info, error};
+use tokio::runtime::Runtime;
 
 /// Global storage for the reporter instance
-///
-/// We use Arc<Mutex<Option<Reporter>>> to allow safe access from multiple threads
-/// and to be able to stop the reporter from FFI calls.
 static GLOBAL_REPORTER: Mutex<Option<ReporterHandle>> = Mutex::new(None);
 
+/// Global tokio runtime
+static mut GLOBAL_RUNTIME: Option<Runtime> = None;
+static RUNTIME_INIT: Once = Once::new();
+
 type ReporterHandle = Arc<Reporter>;
+
+/// Initialize the global tokio runtime
+fn get_runtime() -> &'static Runtime {
+    unsafe {
+        RUNTIME_INIT.call_once(|| {
+            GLOBAL_RUNTIME = Some(
+                Runtime::new().expect("Failed to create tokio runtime")
+            );
+        });
+        GLOBAL_RUNTIME.as_ref().unwrap()
+    }
+}
 
 /// Start the reporter with the given configuration
 ///
@@ -31,6 +45,9 @@ pub extern "C" fn sm_reporter_start(config: *const SmConfig) -> *mut SmReporter 
         error!("sm_reporter_start: null config pointer");
         return std::ptr::null_mut();
     }
+
+    // Initialize runtime
+    let _rt = get_runtime();
 
     // Check if reporter is already running
     {
@@ -56,6 +73,7 @@ pub extern "C" fn sm_reporter_start(config: *const SmConfig) -> *mut SmReporter 
         token,
     };
 
+    // Create reporter within the runtime context
     let reporter = Reporter::new(reporter_config);
 
     // Store the reporter globally

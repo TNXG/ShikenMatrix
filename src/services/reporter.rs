@@ -285,6 +285,7 @@ impl Reporter {
         }
     }
 
+    #[allow(dead_code)]
     pub fn update_config(&self, config: ReporterConfig) {
         if let Ok(mut cfg) = self.config.write() {
             *cfg = config;

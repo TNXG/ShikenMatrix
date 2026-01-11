@@ -46,13 +46,13 @@ struct ContentView: View {
         .onAppear {
             loadConfig()
             startStatusUpdates()
-            addLog("Application started", level: .info)
+            addLog("应用已启动", level: .info)
         }
         .onDisappear {
             stopStatusUpdates()
         }
-        .alert("Error", isPresented: $showAlert) {
-            Button("OK", role: .cancel) { }
+        .alert("错误", isPresented: $showAlert) {
+            Button("确定", role: .cancel) { }
         } message: {
             Text(alertMessage)
         }
@@ -61,22 +61,33 @@ struct ContentView: View {
     // MARK: - View Components
 
     private var connectionSection: some View {
-        GroupBox(label: Text("Connection").fontWeight(.semibold)) {
+        GroupBox(label: Text("连接配置").fontWeight(.semibold)) {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle("Enable Reporter", isOn: $config.enabled)
+                Toggle("启用上报", isOn: $config.enabled)
 
                 HStack {
-                    Text("WebSocket URL:")
+                    Text("WebSocket 地址:")
                     TextField("ws://", text: $config.wsUrl)
                         .textFieldStyle(.roundedBorder)
                         .disabled(isRunning)
                 }
 
                 HStack {
-                    Text("Token:")
-                    SecureField("Enter token", text: $config.token)
+                    Text("令牌:")
+                    SecureField("输入令牌", text: $config.token)
                         .textFieldStyle(.roundedBorder)
                         .disabled(isRunning)
+                }
+                
+                HStack {
+                    Spacer()
+                    Button("保存配置") {
+                        if saveConfig() {
+                            // Success feedback already shown in saveConfig
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isRunning)
                 }
             }
             .padding(8)
@@ -84,7 +95,7 @@ struct ContentView: View {
     }
 
     private var statusSection: some View {
-        GroupBox(label: Text("Status").fontWeight(.semibold)) {
+        GroupBox(label: Text("运行状态").fontWeight(.semibold)) {
             VStack(alignment: .leading, spacing: 12) {
                 statusControlRow
 
@@ -109,7 +120,7 @@ struct ContentView: View {
             Spacer()
 
             Button(action: toggleReporter) {
-                Text(isRunning ? "Stop" : "Start")
+                Text(isRunning ? "停止" : "启动")
                     .frame(minWidth: 80)
             }
             .buttonStyle(.borderedProminent)
@@ -122,7 +133,7 @@ struct ContentView: View {
             HStack {
                 Image(systemName: "network")
                     .foregroundColor(.secondary)
-                Text("Server:")
+                Text("服务器:")
                 Text(config.wsUrl)
                     .foregroundColor(.secondary)
             }
@@ -142,9 +153,9 @@ struct ContentView: View {
 
     private var logViewerSection: some View {
         GroupBox(label: HStack {
-            Text("Logs").fontWeight(.semibold)
+            Text("运行日志").fontWeight(.semibold)
             Spacer()
-            Toggle("Auto-scroll", isOn: $autoScroll)
+            Toggle("自动滚动", isOn: $autoScroll)
                 .toggleStyle(.switch)
                 .controlSize(.small)
         }) {
@@ -202,7 +213,7 @@ struct ContentView: View {
     private var clearLogsButton: some View {
         HStack {
             Spacer()
-            Button("Clear Logs") {
+            Button("清空日志") {
                 logs.removeAll()
             }
             .buttonStyle(.borderless)
@@ -211,11 +222,20 @@ struct ContentView: View {
     }
 
     private var footerView: some View {
-        HStack {
-            Text("Click menu bar icon to hide window")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Spacer()
+        VStack(spacing: 4) {
+            HStack {
+                Text("关闭窗口将隐藏到托盘 • 点击托盘图标重新显示")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            
+            HStack {
+                Link("ShikenMatrix", destination: URL(string: "https://github.com/TNXG/ShikenMatrix")!)
+                    .font(.caption2)
+                    .foregroundColor(.blue)
+                Spacer()
+            }
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -234,23 +254,23 @@ struct ContentView: View {
     private func loadConfig() {
         if let cfg = RustBridge.loadConfig() {
             config = cfg
-            statusMessage = "Config loaded"
-            addLog("Configuration loaded", level: .info)
+            statusMessage = "配置已加载"
+            addLog("配置已加载", level: .info)
         } else {
-            statusMessage = "No config found"
-            addLog("No existing configuration found", level: .warning)
+            statusMessage = "未找到配置"
+            addLog("未找到现有配置", level: .warning)
         }
     }
 
     private func saveConfig() -> Bool {
         if RustBridge.saveConfig(config) {
-            statusMessage = "Config saved"
-            addLog("Configuration saved", level: .info)
+            statusMessage = "配置已保存"
+            addLog("配置已保存", level: .info)
             return true
         } else {
-            alertMessage = "Failed to save configuration"
+            alertMessage = "保存配置失败"
             showAlert = true
-            addLog("Failed to save configuration", level: .error)
+            addLog("保存配置失败", level: .error)
             return false
         }
     }
@@ -269,16 +289,16 @@ struct ContentView: View {
         guard saveConfig() else { return }
 
         guard let handle = RustBridge.startReporter(config: config) else {
-            alertMessage = "Failed to start reporter. Please check your configuration."
+            alertMessage = "启动上报失败，请检查配置。"
             showAlert = true
-            addLog("Failed to start reporter", level: .error)
+            addLog("启动上报失败", level: .error)
             return
         }
 
         reporterHandle = handle
         isRunning = true
-        statusMessage = "Starting..."
-        addLog("Reporter started", level: .info)
+        statusMessage = "启动中..."
+        addLog("上报已启动", level: .info)
 
         // Update status bar
         updateStatusBar()
@@ -291,9 +311,9 @@ struct ContentView: View {
         }
         isRunning = false
         isConnected = false
-        statusMessage = "Stopped"
+        statusMessage = "已停止"
         lastError = nil
-        addLog("Reporter stopped", level: .info)
+        addLog("上报已停止", level: .info)
 
         // Update status bar
         updateStatusBar()
@@ -321,20 +341,20 @@ struct ContentView: View {
 
         // Update message
         if status.isConnected {
-            statusMessage = "Connected"
+            statusMessage = "已连接"
         } else {
-            statusMessage = "Connecting..."
+            statusMessage = "连接中..."
         }
 
         // Handle errors
         if let error = status.lastError, error != lastError {
             lastError = error
-            addLog("Error: \(error)", level: .error)
+            addLog("错误: \(error)", level: .error)
         }
 
         // Log connection state changes
         if status.isConnected != wasConnected {
-            addLog(status.isConnected ? "Connected to server" : "Disconnected from server", level: .info)
+            addLog(status.isConnected ? "已连接到服务器" : "与服务器断开连接", level: .info)
         }
 
         // Update status bar
@@ -396,4 +416,5 @@ enum LogLevel: Equatable {
 
 #Preview {
     ContentView()
+        .frame(width: 500, height: 400)
 }

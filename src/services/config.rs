@@ -33,13 +33,18 @@ fn get_config_path() -> PathBuf {
         let config_dir = home.join(".shikenmatrix");
         if !config_dir.exists() {
             let _ = fs::create_dir_all(&config_dir);
+            info!("Created config directory: {}", config_dir.display());
         }
-        return config_dir.join(CONFIG_FILE);
+        let path = config_dir.join(CONFIG_FILE);
+        info!("Config path: {}", path.display());
+        return path;
     }
 
-    std::env::current_dir()
+    let path = std::env::current_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
-        .join(CONFIG_FILE)
+        .join(CONFIG_FILE);
+    info!("Config path (fallback): {}", path.display());
+    path
 }
 
 /// Load configuration
@@ -72,16 +77,20 @@ pub fn load_config() -> AppConfig {
 }
 
 /// Save configuration
+#[allow(dead_code)]
 pub fn save_config(config: &AppConfig) -> Result<(), String> {
     let path = get_config_path();
 
     let content = toml::to_string_pretty(config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
+    info!("Writing config to: {}", path.display());
+    info!("Config content:\n{}", content);
+
     fs::write(&path, content)
         .map_err(|e| format!("Failed to write config file: {}", e))?;
 
-    info!("Config saved to: {}", path.display());
+    info!("Config saved successfully to: {}", path.display());
     Ok(())
 }
 

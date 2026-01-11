@@ -3,7 +3,6 @@
 use super::types::SmConfig;
 use crate::services::{load_config, save_reporter_config, ReporterConfig};
 use std::ffi::{CStr, CString, c_char};
-use tracing::info;
 
 /// Load configuration from file
 ///
@@ -47,6 +46,9 @@ pub extern "C" fn sm_config_save(config: *const SmConfig) -> bool {
         )
     };
 
+    tracing::info!("Saving config: enabled={}, ws_url={}, token_len={}", 
+        enabled, ws_url, token.len());
+
     let reporter_config = ReporterConfig {
         enabled,
         ws_url,
@@ -55,7 +57,7 @@ pub extern "C" fn sm_config_save(config: *const SmConfig) -> bool {
 
     match save_reporter_config(&reporter_config) {
         Ok(_) => {
-            info!("Configuration saved successfully");
+            tracing::info!("Configuration saved successfully");
             true
         }
         Err(e) => {

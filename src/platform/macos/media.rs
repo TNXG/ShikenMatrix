@@ -134,69 +134,101 @@ fn is_cache_valid(cache: &MediaCache) -> bool {
 
 /// 获取当前播放状态
 pub fn get_playback_state() -> Result<Option<PlaybackState>, String> {
-    // 尝试从缓存获取
-    {
-        let cache_guard = MEDIA_CACHE.lock().map_err(|e| format!("缓存锁定失败: {}", e))?;
-        if let Some(ref cache) = *cache_guard {
-            if is_cache_valid(cache) {
-                return Ok(cache.playback_state.clone());
-            }
-        }
-    }
-
-    // 缓存失效，重新获取
-    match get_now_playing() {
-        Some(info) => {
-            let mut cache_guard = MEDIA_CACHE.lock().map_err(|e| format!("缓存锁定失败: {}", e))?;
-            let cache = cache_guard.get_or_insert_with(MediaCache::default);
-            update_cache_from_info(&info, cache);
-            Ok(cache.playback_state.clone())
-        },
-        None => {
-            // 清空缓存
-            if let Ok(mut cache_guard) = MEDIA_CACHE.lock() {
-                if let Some(ref mut cache) = *cache_guard {
-                    cache.metadata = None;
-                    cache.playback_state = None;
-                    cache.last_update = Instant::now();
+    // 使用 catch_unwind 防止 mediaremote-rs 的 panic
+    let result = std::panic::catch_unwind(|| {
+        // 尝试从缓存获取
+        {
+            let cache_guard = match MEDIA_CACHE.lock() {
+                Ok(guard) => guard,
+                Err(e) => return Err(format!("缓存锁定失败: {}", e)),
+            };
+            
+            if let Some(ref cache) = *cache_guard {
+                if is_cache_valid(cache) {
+                    return Ok(cache.playback_state.clone());
                 }
             }
-            Ok(None)
-        },
+        }
+
+        // 缓存失效，重新获取
+        match get_now_playing() {
+            Some(info) => {
+                let mut cache_guard = match MEDIA_CACHE.lock() {
+                    Ok(guard) => guard,
+                    Err(e) => return Err(format!("缓存锁定失败: {}", e)),
+                };
+                
+                let cache = cache_guard.get_or_insert_with(MediaCache::default);
+                update_cache_from_info(&info, cache);
+                Ok(cache.playback_state.clone())
+            },
+            None => {
+                // 清空缓存
+                if let Ok(mut cache_guard) = MEDIA_CACHE.lock() {
+                    if let Some(ref mut cache) = *cache_guard {
+                        cache.metadata = None;
+                        cache.playback_state = None;
+                        cache.last_update = Instant::now();
+                    }
+                }
+                Ok(None)
+            },
+        }
+    });
+    
+    match result {
+        Ok(r) => r,
+        Err(e) => Err(format!("Media API panicked: {:?}", e)),
     }
 }
 
 /// 获取当前媒体元数据
 pub fn get_media_metadata() -> Result<Option<MediaMetadata>, String> {
-    // 尝试从缓存获取
-    {
-        let cache_guard = MEDIA_CACHE.lock().map_err(|e| format!("缓存锁定失败: {}", e))?;
-        if let Some(ref cache) = *cache_guard {
-            if is_cache_valid(cache) {
-                return Ok(cache.metadata.clone());
-            }
-        }
-    }
-
-    // 缓存失效，重新获取
-    match get_now_playing() {
-        Some(info) => {
-            let mut cache_guard = MEDIA_CACHE.lock().map_err(|e| format!("缓存锁定失败: {}", e))?;
-            let cache = cache_guard.get_or_insert_with(MediaCache::default);
-            update_cache_from_info(&info, cache);
-            Ok(cache.metadata.clone())
-        },
-        None => {
-            // 清空缓存
-            if let Ok(mut cache_guard) = MEDIA_CACHE.lock() {
-                if let Some(ref mut cache) = *cache_guard {
-                    cache.metadata = None;
-                    cache.playback_state = None;
-                    cache.last_update = Instant::now();
+    // 使用 catch_unwind 防止 mediaremote-rs 的 panic
+    let result = std::panic::catch_unwind(|| {
+        // 尝试从缓存获取
+        {
+            let cache_guard = match MEDIA_CACHE.lock() {
+                Ok(guard) => guard,
+                Err(e) => return Err(format!("缓存锁定失败: {}", e)),
+            };
+            
+            if let Some(ref cache) = *cache_guard {
+                if is_cache_valid(cache) {
+                    return Ok(cache.metadata.clone());
                 }
             }
-            Ok(None)
-        },
+        }
+
+        // 缓存失效，重新获取
+        match get_now_playing() {
+            Some(info) => {
+                let mut cache_guard = match MEDIA_CACHE.lock() {
+                    Ok(guard) => guard,
+                    Err(e) => return Err(format!("缓存锁定失败: {}", e)),
+                };
+                
+                let cache = cache_guard.get_or_insert_with(MediaCache::default);
+                update_cache_from_info(&info, cache);
+                Ok(cache.metadata.clone())
+            },
+            None => {
+                // 清空缓存
+                if let Ok(mut cache_guard) = MEDIA_CACHE.lock() {
+                    if let Some(ref mut cache) = *cache_guard {
+                        cache.metadata = None;
+                        cache.playback_state = None;
+                        cache.last_update = Instant::now();
+                    }
+                }
+                Ok(None)
+            },
+        }
+    });
+    
+    match result {
+        Ok(r) => r,
+        Err(e) => Err(format!("Media API panicked: {:?}", e)),
     }
 }
 

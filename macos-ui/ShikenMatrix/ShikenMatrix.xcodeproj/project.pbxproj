@@ -88,6 +88,7 @@
 				9B460E552F13BF2A008A6BA3 /* Frameworks */,
 				9B460E562F13BF2A008A6BA3 /* Resources */,
 				9B460E6D2F13C1C7008A6BA3 /* Embed Frameworks */,
+				9BE4B7F92F13DDB900898206 /* Run Script */,
 			);
 			buildRules = (
 			);
@@ -146,6 +147,27 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		9BE4B7F92F13DDB900898206 /* Run Script */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 8;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Run Script";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+			shellPath = /bin/sh;
+			shellScript = "../build-rust.sh\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		9B460E542F13BF2A008A6BA3 /* Sources */ = {

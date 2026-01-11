@@ -22,9 +22,14 @@ class StatusBarManager {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem?.button {
-            // Use a simple icon or text for the status bar
-            button.title = "SM"
-            button.toolTip = "ShikenMatrix - Window Reporter"
+            // Use SF Symbol for better appearance
+            if let image = NSImage(systemSymbolName: "chart.bar.doc.horizontal", accessibilityDescription: "时刻矩阵") {
+                image.isTemplate = true
+                button.image = image
+            } else {
+                button.title = "📊"
+            }
+            button.toolTip = "ShikenMatrix - 窗口上报工具"
         }
 
         buildMenu()
@@ -36,7 +41,7 @@ class StatusBarManager {
 
         // Show Settings
         let showItem = NSMenuItem(
-            title: "Show Settings",
+            title: "显示设置",
             action: #selector(showSettings),
             keyEquivalent: ""
         )
@@ -45,7 +50,7 @@ class StatusBarManager {
 
         // Status indicator
         let statusItem = NSMenuItem(
-            title: "Status: Stopped",
+            title: "状态: 已停止",
             action: nil,
             keyEquivalent: ""
         )
@@ -56,7 +61,7 @@ class StatusBarManager {
 
         // Quit
         let quitItem = NSMenuItem(
-            title: "Quit",
+            title: "退出",
             action: #selector(quit),
             keyEquivalent: "q"
         )
@@ -80,12 +85,12 @@ class StatusBarManager {
 
         if isRunning {
             if isConnected {
-                statusItem.title = "Status: Connected"
+                statusItem.title = "状态: 已连接"
             } else {
-                statusItem.title = "Status: Connecting..."
+                statusItem.title = "状态: 连接中..."
             }
         } else {
-            statusItem.title = "Status: Stopped"
+            statusItem.title = "状态: 已停止"
         }
     }
 

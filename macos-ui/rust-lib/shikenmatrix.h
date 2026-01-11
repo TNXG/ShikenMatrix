@@ -136,4 +136,14 @@ struct SmStatus sm_reporter_get_status(const struct SmReporter *_handle);
  */
 bool sm_reporter_is_running(void);
 
-#endif /* SHIKENMATRIX_H */
+extern bool AXIsProcessTrusted(void);
+
+extern bool AXIsProcessTrustedWithOptions(const __CFDictionary *options);
+
+extern void *AXUIElementCreateApplication(int32_t pid);
+
+extern int32_t AXUIElementCopyAttributeValue(void *element, const void *attribute, void **value);
+
+extern void CFRelease(void *cf);
+
+#endif  /* SHIKENMATRIX_H */
