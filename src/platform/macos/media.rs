@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 /// 播放状态信息
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PlaybackState {
     /// 是否正在播放
     pub playing: bool,
@@ -18,7 +18,7 @@ pub struct PlaybackState {
 }
 
 /// 媒体元数据
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MediaMetadata {
     /// 应用 Bundle ID
     pub bundle_identifier: Option<String>,

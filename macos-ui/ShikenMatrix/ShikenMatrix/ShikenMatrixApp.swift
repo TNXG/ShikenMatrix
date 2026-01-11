@@ -41,7 +41,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     private func showStartupNotification() {
         let notification = NSUserNotification()
-        notification.title = "时刻矩阵 ShikenMatrix"
+        notification.title = "ShikenMatrix"
         notification.informativeText = "应用已在系统托盘启动，点击托盘图标打开设置"
         notification.soundName = nil
         
@@ -60,7 +60,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defer: false
         )
         
-        window.title = "时刻矩阵 ShikenMatrix"
+        window.title = "ShikenMatrix"
         window.contentViewController = hostingController
         window.delegate = self
         window.center()
@@ -101,5 +101,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func updateStatusBarStatus(isRunning: Bool, isConnected: Bool) {
         statusBarManager?.updateStatus(isRunning: isRunning, isConnected: isConnected)
+    }
+
+    // MARK: - Cleanup
+    func applicationWillTerminate(_ notification: Notification) {
+        print("🛑 AppDelegate: Application will terminate, cleaning up...")
+        // Clear window delegate to prevent crashes
+        window?.delegate = nil
+        // Clear references
+        window = nil
+        statusBarManager = nil
+        print("✅ AppDelegate: Cleanup completed")
+    }
+
+    deinit {
+        print("♻️ AppDelegate deinit: Cleaning up...")
+        window?.delegate = nil
+        window = nil
+        statusBarManager = nil
     }
 }

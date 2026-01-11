@@ -28,7 +28,7 @@ pub use windows::*;
 pub use linux::*;
 
 /// 窗口信息
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WindowInfo {
     /// 窗口标题
     pub title: String,

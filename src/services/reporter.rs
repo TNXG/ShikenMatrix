@@ -299,6 +299,11 @@ impl Reporter {
             let mut permission_warned = false;
             let mut check_count = 0;
             
+            // Allow comparison of Option<T>
+            let mut last_window_info: Option<crate::platform::WindowInfo> = None;
+            let mut last_media_metadata: Option<crate::platform::MediaMetadata> = None;
+            let mut last_playback_state: Option<crate::platform::PlaybackState> = None;
+            
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 check_count += 1;
@@ -320,19 +325,23 @@ impl Reporter {
                     // Monitor window info
                     match crate::platform::macos::get_frontmost_window_info_sync() {
                         Ok(window_info) => {
-                            let log_msg = format!("获取到窗口信息: {} ({})", window_info.title, window_info.process_name);
-                            reporter_clone.push_log(0, &log_msg);
-                            
-                            // Push window data to frontend (with icon if available)
-                            reporter_clone.push_window_data(
-                                &window_info.title, 
-                                &window_info.process_name, 
-                                window_info.pid as u32,
-                                window_info.icon_data.as_deref()
-                            );
-                            
-                            reporter_clone.send_window_info(&window_info);
-                            permission_warned = false; // Reset warning flag on success
+                            if last_window_info.as_ref() != Some(&window_info) {
+                                let log_msg = format!("获取到窗口信息: {} ({})", window_info.title, window_info.process_name);
+                                reporter_clone.push_log(0, &log_msg);
+                                
+                                // Push window data to frontend (with icon if available)
+                                reporter_clone.push_window_data(
+                                    &window_info.title, 
+                                    &window_info.process_name, 
+                                    window_info.pid as u32,
+                                    window_info.icon_data.as_deref()
+                                );
+                                
+                                reporter_clone.send_window_info(&window_info);
+                                permission_warned = false; // Reset warning flag on success
+                                
+                                last_window_info = Some(window_info);
+                            }
                         }
                         Err(e) => {
                             if !permission_warned {
@@ -348,49 +357,71 @@ impl Reporter {
                     if std::env::var("ENABLE_MEDIA_REPORTING").unwrap_or_default() == "1" {
                         if let Ok(Some(metadata)) = crate::platform::macos::get_media_metadata() {
                             if let Ok(Some(state)) = crate::platform::macos::get_playback_state() {
-                                // Decode artwork if available
-                                let artwork_bytes = metadata.artwork_data.as_ref().and_then(|data| {
-                                    use base64::{Engine as _, engine::general_purpose};
-                                    general_purpose::STANDARD.decode(data).ok()
-                                });
                                 
-                                // Push media data to frontend
-                                let title = metadata.title.as_deref().unwrap_or("未知");
-                                let artist = metadata.artist.as_deref().unwrap_or("未知");
-                                let album = metadata.album.as_deref().unwrap_or("未知");
-                                reporter_clone.push_media_data(
-                                    title, 
-                                    artist, 
-                                    album, 
-                                    metadata.duration, 
-                                    state.elapsed_time, 
-                                    state.playing,
-                                    artwork_bytes.as_deref()
-                                );
-                                
-                                reporter_clone.send_media_playback(&metadata, &state);
+                                let metadata_changed = last_media_metadata.as_ref() != Some(&metadata);
+                                let state_changed = last_playback_state.as_ref() != Some(&state);
 
-                                // Upload artwork if available and not cached
-                                if let (Some(artwork_data), Some(mime_type), Some(content_id)) =
-                                    (metadata.artwork_data.as_ref(), metadata.artwork_mime_type.as_ref(), metadata.content_item_identifier.as_ref()) {
-                                    // Check if already cached
-                                    let needs_upload = reporter_clone.artwork_urls.read()
-                                        .map(|urls| !urls.contains_key(content_id))
-                                        .unwrap_or(true);
+                                if metadata_changed || state_changed {
+                                    // Decode artwork if available
+                                    let artwork_bytes = if metadata_changed {
+                                        metadata.artwork_data.as_ref().and_then(|data| {
+                                            use base64::{Engine as _, engine::general_purpose};
+                                            general_purpose::STANDARD.decode(data).ok()
+                                        })
+                                    } else {
+                                        // If metadata hasn't changed, we don't need to re-decode artwork for UI update
+                                        // unless we are in a state update but want to push metadata again?
+                                        // To be safe and simple, we re-decode if we are pushing. 
+                                        // Optimization: cache decoded bytes? For now, re-decoding is okay as it happens much less frequently.
+                                        metadata.artwork_data.as_ref().and_then(|data| {
+                                            use base64::{Engine as _, engine::general_purpose};
+                                            general_purpose::STANDARD.decode(data).ok()
+                                        })
+                                    };
+                                    
+                                    // Push media data to frontend
+                                    let title = metadata.title.as_deref().unwrap_or("未知");
+                                    let artist = metadata.artist.as_deref().unwrap_or("未知");
+                                    let album = metadata.album.as_deref().unwrap_or("未知");
+                                    reporter_clone.push_media_data(
+                                        title, 
+                                        artist, 
+                                        album, 
+                                        metadata.duration, 
+                                        state.elapsed_time, 
+                                        state.playing,
+                                        artwork_bytes.as_deref()
+                                    );
+                                    
+                                    reporter_clone.send_media_playback(&metadata, &state);
 
-                                    if needs_upload {
-                                        // Decode base64 artwork data
-                                        use base64::{Engine as _, engine::general_purpose};
-                                        match general_purpose::STANDARD.decode(artwork_data) {
-                                            Ok(artwork_bytes) => {
-                                                reporter_clone.upload_artwork(content_id.clone(), artwork_bytes, mime_type.clone());
-                                            }
-                                            Err(e) => {
-                                                let err_msg = format!("解码封面数据失败: {}", e);
-                                                reporter_clone.push_log(1, &err_msg);
+                                    // Upload artwork if available and not cached (only if metadata changed)
+                                    if metadata_changed {
+                                        if let (Some(artwork_data), Some(mime_type), Some(content_id)) =
+                                            (metadata.artwork_data.as_ref(), metadata.artwork_mime_type.as_ref(), metadata.content_item_identifier.as_ref()) {
+                                            // Check if already cached
+                                            let needs_upload = reporter_clone.artwork_urls.read()
+                                                .map(|urls| !urls.contains_key(content_id))
+                                                .unwrap_or(true);
+
+                                            if needs_upload {
+                                                // Decode base64 artwork data
+                                                use base64::{Engine as _, engine::general_purpose};
+                                                match general_purpose::STANDARD.decode(artwork_data) {
+                                                    Ok(artwork_bytes) => {
+                                                        reporter_clone.upload_artwork(content_id.clone(), artwork_bytes, mime_type.clone());
+                                                    }
+                                                    Err(e) => {
+                                                        let err_msg = format!("解码封面数据失败: {}", e);
+                                                        reporter_clone.push_log(1, &err_msg);
+                                                    }
+                                                }
                                             }
                                         }
                                     }
+                                    
+                                    last_media_metadata = Some(metadata);
+                                    last_playback_state = Some(state);
                                 }
                             }
                         }

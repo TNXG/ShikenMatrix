@@ -23,7 +23,7 @@ class StatusBarManager {
 
         if let button = statusItem?.button {
             // Use SF Symbol for better appearance
-            if let image = NSImage(systemSymbolName: "chart.bar.doc.horizontal", accessibilityDescription: "时刻矩阵") {
+            if let image = NSImage(systemSymbolName: "chart.bar.doc.horizontal", accessibilityDescription: "ShikenMatrix") {
                 image.isTemplate = true
                 button.image = image
             } else {

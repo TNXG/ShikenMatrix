@@ -146,7 +146,20 @@ class RustBridge {
         sm_reporter_set_media_callback(mediaCallbackWrapper, 0)
         print("✅ RustBridge: Media callback set")
     }
-    
+
+    /// Clear all callbacks to prevent memory leaks
+    static func clearCallbacks() {
+        print("🧹 RustBridge: Clearing all callbacks...")
+        logCallback = nil
+        windowCallback = nil
+        mediaCallback = nil
+        // Set dummy C callbacks to prevent crashes from dangling pointers
+        sm_reporter_set_log_callback({ _, _, _ in }, 0)
+        sm_reporter_set_window_callback({ _, _, _, _, _, _ in }, 0)
+        sm_reporter_set_media_callback({ _, _, _, _, _, _, _, _, _ in }, 0)
+        print("✅ RustBridge: All callbacks cleared")
+    }
+
     /// Load configuration from Rust
     static func loadConfig() -> ReporterConfig? {
         let ptr = sm_config_load()

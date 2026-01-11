@@ -87,7 +87,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 800, minHeight: 500)
         .onAppear(perform: setupApp)
-        .onDisappear(perform: stopStatusUpdates)
+        .onDisappear(perform: cleanup)
         .alert("提示", isPresented: $showAlert) { Button("OK", role: .cancel) { } } message: { Text(alertMessage) }
     }
 
@@ -173,44 +173,29 @@ struct ContentView: View {
                 // Media Info Card
                 if let media = currentMedia {
                     MonitorCard {
-                        VStack(spacing: 8) {
-                            HStack(alignment: .center, spacing: 10) {
-                                // Artwork
-                                if let data = media.artworkData, let nsImage = NSImage(data: data) {
-                                    Image(nsImage: nsImage)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 32, height: 32)
-                                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                                } else {
-                                    Image(systemName: "music.quarternote.3")
-                                        .frame(width: 32, height: 32)
-                                        .background(Color.secondary.opacity(0.1))
-                                        .cornerRadius(4)
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(media.title)
-                                        .font(.system(size: 11, weight: .medium))
-                                        .lineLimit(1)
-                                    Text(media.artist)
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                        .lineLimit(1)
-                                }
-                                
-                                Spacer()
-                                
-                                Image(systemName: media.playing ? "speaker.wave.2.fill" : "pause.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(media.playing ? .green : .orange)
+                        HStack(alignment: .center, spacing: 10) {
+                            // Artwork
+                            if let data = media.artworkData, let nsImage = NSImage(data: data) {
+                                Image(nsImage: nsImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 32, height: 32)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                            } else {
+                                Image(systemName: "music.quarternote.3")
+                                    .frame(width: 32, height: 32)
+                                    .background(Color.secondary.opacity(0.1))
+                                    .cornerRadius(4)
                             }
                             
-                            if media.duration > 0 {
-                                ProgressView(value: media.elapsedTime, total: media.duration)
-                                    .progressViewStyle(.linear)
-                                    .controlSize(.mini)
-                                    .tint(media.playing ? .green : .secondary)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(media.title)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                                Text(media.artist)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
                             }
                         }
                     }
@@ -390,10 +375,14 @@ struct ContentView: View {
     
     private func setupCallbacks() {
         RustBridge.setLogCallback { l, m in
-            DispatchQueue.main.async { self.addLog(m, level: l == .info ? .info : (l == .warning ? .warning : .error)) }
+            DispatchQueue.main.async { [self] in self.addLog(m, level: l == .info ? .info : (l == .warning ? .warning : .error)) }
         }
-        RustBridge.setWindowCallback { w in DispatchQueue.main.async { self.currentWindow = w } }
-        RustBridge.setMediaCallback { m in DispatchQueue.main.async { self.currentMedia = m } }
+        RustBridge.setWindowCallback { w in
+            DispatchQueue.main.async { [self] in self.currentWindow = w }
+        }
+        RustBridge.setMediaCallback { m in
+            DispatchQueue.main.async { [self] in self.currentMedia = m }
+        }
     }
 
     private func toggleReporter() {
@@ -427,6 +416,20 @@ struct ContentView: View {
         }
     }
     private func stopStatusUpdates() { statusTimer?.invalidate(); logCleanupTimer?.invalidate() }
+
+    private func cleanup() {
+        print("🧹 ContentView: Starting cleanup...")
+        // Stop timers
+        stopStatusUpdates()
+        // Clear FFI callbacks to prevent memory leaks
+        RustBridge.clearCallbacks()
+        // Clear handle
+        if let handle = reporterHandle {
+            _ = RustBridge.stopReporter(handle)
+            reporterHandle = nil
+        }
+        print("✅ ContentView: Cleanup completed")
+    }
     
     private func loadConfig() { if let c = RustBridge.loadConfig() { config = c } }
     private func startLogCleanup() {
@@ -441,7 +444,8 @@ struct ContentView: View {
     private func addLog(_ msg: String, level: LogLevel) {
         let id = UInt64(Date().timeIntervalSince1970 * 1000) + UInt64(logs.count)
         logs.append(LogEntry(id: id, timestamp: Date(), message: msg, level: level))
-        if logs.count > 1000 { logs.removeFirst(100) }
+        // More aggressive cleanup: keep max 500 entries, remove 200 when threshold reached
+        if logs.count > 500 { logs.removeFirst(200) }
     }
     
     private var statusIndicatorColor: Color {
